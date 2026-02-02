@@ -25,7 +25,7 @@ CHANNEL_URL = "https://t.me/stylefug"
 
 DB_PATH = "db.sqlite3"
 
-# --- i18n: RU if Telegram is ru*, else EN ---
+# ---------- TEXTS ----------
 TEXT = {
     "ru": {
         "locked": "studioFUG dating — закрытое комьюнити.\nПодпишись на официальный канал, чтобы продолжить.",
@@ -36,33 +36,28 @@ TEXT = {
         "create": "Создать профиль",
         "browse": "Смотреть анкеты",
         "profile": "Мой профиль",
-        "delete": "Удалить профиль",
-        "back": "Назад",
         "not_sub": "Пока не вижу подписку.",
         "need_profile": "Сначала создай профиль.",
-        "creating": "Создаём профиль.",
         "ask_name": "Имя / никнейм?",
         "ask_age": "Возраст (числом)?",
         "ask_city": "Город?",
-        "ask_gender": "Ты кто?",
+        "ask_gender": "Гендер:",
         "g_m": "Мужчина",
         "g_f": "Женщина",
+        "g_n": "Не хочу говорить",
         "ask_looking": "Кто интересен?",
         "l_m": "Мужчины",
         "l_f": "Женщины",
         "l_all": "Все",
-        "ask_photo": "Пришли 1 фото (как фото, не файл).",
-        "ask_bio": "Коротко о себе (1–2 строки, без ссылок).",
+        "ask_photo": "Пришли 1 фото (именно как фото, не файл).",
+        "ask_bio": "Коротко о себе (1–2 строки).",
         "saved": "Профиль сохранён. Можно смотреть анкеты.",
         "bad_age": "Нужна цифра (например 26).",
-        "no_photo": "Пришли фото именно как фото (не документ).",
-        "no_more": "Пока анкет больше нет. Попробуй позже.",
+        "no_photo": "Пришли фото как фото (не документ).",
+        "no_more": "Пока анкет больше нет.",
         "card_like": "❤️ Лайк",
         "card_skip": "❌ Пропуск",
         "matched": "Это взаимно. Матч!",
-        "you_got_like": "Тебя лайкнули.",
-        "mutual": "У вас матч. Можно написать друг другу:",
-        "no_username": "У пользователя скрыт username. Напиши ему через Telegram из профиля (если доступно).",
         "deleted": "Профиль удалён."
     },
     "en": {
@@ -74,73 +69,59 @@ TEXT = {
         "create": "Create profile",
         "browse": "Browse",
         "profile": "My profile",
-        "delete": "Delete profile",
-        "back": "Back",
         "not_sub": "Not subscribed yet.",
         "need_profile": "Create a profile first.",
-        "creating": "Creating your profile.",
         "ask_name": "Name / nickname?",
         "ask_age": "Age (number)?",
         "ask_city": "City?",
-        "ask_gender": "You are?",
+        "ask_gender": "Gender:",
         "g_m": "Man",
         "g_f": "Woman",
+        "g_n": "Prefer not to say",
         "ask_looking": "Looking for?",
         "l_m": "Men",
         "l_f": "Women",
         "l_all": "All",
-        "ask_photo": "Send 1 photo (as a photo, not a file).",
-        "ask_bio": "Short bio (1–2 lines, no links).",
-        "saved": "Profile saved. You can browse now.",
-        "bad_age": "Please send a number (e.g. 26).",
-        "no_photo": "Send a photo as a photo (not a document).",
-        "no_more": "No more profiles right now. Try later.",
+        "ask_photo": "Send 1 photo (as photo, not file).",
+        "ask_bio": "Short bio (1–2 lines).",
+        "saved": "Profile saved. You can browse.",
+        "bad_age": "Send a number (e.g. 26).",
+        "no_photo": "Send photo as photo (not document).",
+        "no_more": "No more profiles.",
         "card_like": "❤️ Like",
         "card_skip": "❌ Skip",
-        "matched": "It's mutual. Match!",
-        "you_got_like": "Someone liked you.",
-        "mutual": "You matched. You can contact each other:",
-        "no_username": "User has no public username. Contact via Telegram profile if available.",
+        "matched": "It's a match!",
         "deleted": "Profile deleted."
     }
 }
 
-def lang_of(user_lang: str | None) -> str:
-    return "ru" if (user_lang or "").startswith("ru") else "en"
+def lang_of(code: str | None) -> str:
+    return "ru" if (code or "").startswith("ru") else "en"
 
-# ----- simple per-user flow state in DB -----
-# states: none, name, age, city, gender, looking, photo, bio
-# also store draft fields in a drafts table
-
+# ---------- DB ----------
 async def db_init():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            lang TEXT
-        )""")
-        await db.execute("""
         CREATE TABLE IF NOT EXISTS profiles (
             user_id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            age INTEGER NOT NULL,
-            city TEXT NOT NULL,
-            gender TEXT NOT NULL,         -- 'm'/'f'
-            looking TEXT NOT NULL,        -- 'm'/'f'/'all'
-            photo_file_id TEXT NOT NULL,
-            bio TEXT NOT NULL
+            name TEXT,
+            age INTEGER,
+            city TEXT,
+            gender TEXT,      -- m/f/n
+            looking TEXT,     -- m/f/all (preference)
+            photo_file_id TEXT,
+            bio TEXT
         )""")
         await db.execute("""
         CREATE TABLE IF NOT EXISTS likes (
-            from_user_id INTEGER NOT NULL,
-            to_user_id INTEGER NOT NULL,
+            from_user_id INTEGER,
+            to_user_id INTEGER,
             PRIMARY KEY (from_user_id, to_user_id)
         )""")
         await db.execute("""
         CREATE TABLE IF NOT EXISTS state (
             user_id INTEGER PRIMARY KEY,
-            step TEXT NOT NULL
+            step TEXT
         )""")
         await db.execute("""
         CREATE TABLE IF NOT EXISTS draft (
@@ -155,104 +136,7 @@ async def db_init():
         )""")
         await db.commit()
 
-async def set_user(user_id: int, username: str | None, lang: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO users(user_id, username, lang) VALUES(?,?,?) "
-            "ON CONFLICT(user_id) DO UPDATE SET username=excluded.username, lang=excluded.lang",
-            (user_id, username, lang),
-        )
-        await db.commit()
-
-async def set_step(user_id: int, step: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO state(user_id, step) VALUES(?,?) "
-            "ON CONFLICT(user_id) DO UPDATE SET step=excluded.step",
-            (user_id, step),
-        )
-        await db.commit()
-
-async def get_step(user_id: int) -> str:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute("SELECT step FROM state WHERE user_id=?", (user_id,))
-        row = await cur.fetchone()
-        return row[0] if row else "none"
-
-async def clear_step(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM state WHERE user_id=?", (user_id,))
-        await db.commit()
-
-async def draft_set(user_id: int, **kwargs):
-    cols = []
-    vals = []
-    for k, v in kwargs.items():
-        cols.append(k)
-        vals.append(v)
-    if not cols:
-        return
-    sets = ", ".join([f"{c}=?" for c in cols])
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO draft(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING",
-            (user_id,),
-        )
-        await db.execute(f"UPDATE draft SET {sets} WHERE user_id=?", (*vals, user_id))
-        await db.commit()
-
-async def draft_get(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute("SELECT name, age, city, gender, looking, photo_file_id, bio FROM draft WHERE user_id=?", (user_id,))
-        row = await cur.fetchone()
-        if not row:
-            return {}
-        keys = ["name", "age", "city", "gender", "looking", "photo_file_id", "bio"]
-        return dict(zip(keys, row))
-
-async def draft_clear(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM draft WHERE user_id=?", (user_id,))
-        await db.commit()
-
-async def profile_exists(user_id: int) -> bool:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute("SELECT 1 FROM profiles WHERE user_id=?", (user_id,))
-        return (await cur.fetchone()) is not None
-
-async def save_profile(user_id: int, data: dict):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO profiles(user_id, name, age, city, gender, looking, photo_file_id, bio) "
-            "VALUES(?,?,?,?,?,?,?,?) "
-            "ON CONFLICT(user_id) DO UPDATE SET "
-            "name=excluded.name, age=excluded.age, city=excluded.city, gender=excluded.gender, "
-            "looking=excluded.looking, photo_file_id=excluded.photo_file_id, bio=excluded.bio",
-            (
-                user_id, data["name"], data["age"], data["city"],
-                data["gender"], data["looking"], data["photo_file_id"], data["bio"]
-            )
-        )
-        await db.commit()
-
-async def get_profile(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
-            "SELECT name, age, city, gender, looking, photo_file_id, bio FROM profiles WHERE user_id=?",
-            (user_id,)
-        )
-        row = await cur.fetchone()
-        if not row:
-            return None
-        keys = ["name", "age", "city", "gender", "looking", "photo_file_id", "bio"]
-        return dict(zip(keys, row))
-
-async def delete_profile(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM profiles WHERE user_id=?", (user_id,))
-        await db.execute("DELETE FROM likes WHERE from_user_id=? OR to_user_id=?", (user_id, user_id))
-        await db.commit()
-
+# ---------- HELPERS ----------
 async def is_subscribed(user_id: int) -> bool:
     try:
         m = await bot.get_chat_member(CHANNEL, user_id)
@@ -260,14 +144,14 @@ async def is_subscribed(user_id: int) -> bool:
     except Exception:
         return False
 
-def kb_locked(t: dict):
+def kb_locked(t):
     kb = InlineKeyboardBuilder()
     kb.button(text=t["join"], url=CHANNEL_URL)
     kb.button(text=t["ijoined"], callback_data="check_sub")
     kb.adjust(1)
     return kb.as_markup()
 
-def kb_menu(t: dict):
+def kb_menu(t):
     kb = InlineKeyboardBuilder()
     kb.button(text=t["create"], callback_data="menu_create")
     kb.button(text=t["browse"], callback_data="menu_browse")
@@ -275,14 +159,15 @@ def kb_menu(t: dict):
     kb.adjust(1)
     return kb.as_markup()
 
-def kb_gender(t: dict):
+def kb_gender(t):
     kb = InlineKeyboardBuilder()
     kb.button(text=t["g_m"], callback_data="g_m")
     kb.button(text=t["g_f"], callback_data="g_f")
-    kb.adjust(2)
+    kb.button(text=t["g_n"], callback_data="g_n")
+    kb.adjust(2, 1)
     return kb.as_markup()
 
-def kb_looking(t: dict):
+def kb_looking(t):
     kb = InlineKeyboardBuilder()
     kb.button(text=t["l_m"], callback_data="l_m")
     kb.button(text=t["l_f"], callback_data="l_f")
@@ -290,89 +175,91 @@ def kb_looking(t: dict):
     kb.adjust(1)
     return kb.as_markup()
 
-def kb_profile_actions(t: dict):
+def kb_card(t, uid):
     kb = InlineKeyboardBuilder()
-    kb.button(text=t["delete"], callback_data="profile_delete")
-    kb.button(text=t["back"], callback_data="menu_back")
-    kb.adjust(1)
-    return kb.as_markup()
-
-def kb_card(t: dict, target_user_id: int):
-    kb = InlineKeyboardBuilder()
-    kb.button(text=t["card_like"], callback_data=f"like:{target_user_id}")
-    kb.button(text=t["card_skip"], callback_data=f"skip:{target_user_id}")
+    kb.button(text=t["card_like"], callback_data=f"like:{uid}")
+    kb.button(text=t["card_skip"], callback_data=f"skip:{uid}")
     kb.adjust(2)
     return kb.as_markup()
 
-async def pick_next_profile(viewer_id: int):
-    me = await get_profile(viewer_id)
-    if not me:
-        return None
+def allowed_genders_by_looking(looking: str) -> tuple[str, ...]:
+    # required behavior:
+    # men -> m + n
+    # women -> f + n
+    # all -> m + f + n
+    if looking == "m":
+        return ("m", "n")
+    if looking == "f":
+        return ("f", "n")
+    return ("m", "f", "n")
 
+async def pick_next_profile(viewer_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        # Exclude self and already liked/skipped target by checking likes table (only likes stored; skips not stored)
-        # We'll still avoid showing someone you already liked.
-        cur = await db.execute("""
+        # viewer profile
+        cur = await db.execute("SELECT looking FROM profiles WHERE user_id=?", (viewer_id,))
+        row = await cur.fetchone()
+        if not row:
+            return None
+        looking = row[0]
+        genders = allowed_genders_by_looking(looking)
+
+        # candidates:
+        # - not self
+        # - not already liked by viewer
+        # - gender in allowed set
+        placeholders = ",".join(["?"] * len(genders))
+        query = f"""
             SELECT p.user_id
             FROM profiles p
             WHERE p.user_id != ?
-              AND p.user_id NOT IN (SELECT to_user_id FROM likes WHERE from_user_id = ?)
-        """, (viewer_id, viewer_id))
+              AND p.gender IN ({placeholders})
+              AND p.user_id NOT IN (
+                    SELECT to_user_id FROM likes WHERE from_user_id = ?
+              )
+        """
+        cur = await db.execute(query, (viewer_id, *genders, viewer_id))
         ids = [r[0] for r in await cur.fetchall()]
         if not ids:
             return None
+        return random.choice(ids)
 
-        # Apply basic "looking" filter from viewer:
-        # if viewer looking == 'm' show only men; 'f' show only women; 'all' show all
-        looking = me["looking"]
-        if looking in ("m", "f"):
-            cur2 = await db.execute("""
-                SELECT user_id FROM profiles
-                WHERE user_id IN (%s) AND gender = ?
-            """ % (",".join(["?"] * len(ids))), (*ids, looking))
-            ids2 = [r[0] for r in await cur2.fetchall()]
-            ids = ids2
-
-        if not ids:
+async def get_profile(uid: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("""
+            SELECT name, age, city, gender, looking, photo_file_id, bio
+            FROM profiles WHERE user_id=?
+        """, (uid,))
+        row = await cur.fetchone()
+        if not row:
             return None
+        keys = ["name", "age", "city", "gender", "looking", "photo_file_id", "bio"]
+        return dict(zip(keys, row))
 
-    target_id = random.choice(ids)
-    return target_id
-
-def gender_label(lang: str, g: str) -> str:
+def gender_badge(lang: str, g: str) -> str:
+    # minimal, clean
+    if g == "n":
+        return "—"
     if lang == "ru":
         return "М" if g == "m" else "Ж"
     return "M" if g == "m" else "F"
 
-def looking_label(lang: str, l: str) -> str:
-    if lang == "ru":
-        return {"m": "мужчины", "f": "женщины", "all": "все"}[l]
-    return {"m": "men", "f": "women", "all": "all"}[l]
-
-async def send_card(viewer_msg_or_call, viewer_lang: str, target_user_id: int):
-    t = TEXT[viewer_lang]
-    p = await get_profile(target_user_id)
+async def send_card(chat_id: int, lang: str, uid: int):
+    t = TEXT[lang]
+    p = await get_profile(uid)
     if not p:
         return
-
-    caption = (
-        f"{p['name']}, {p['age']}\n"
-        f"{p['city']}\n\n"
-        f"{p['bio']}"
-    )
+    caption = f"{p['name']}, {p['age']}\n{p['city']}\n\n{p['bio']}"
     await bot.send_photo(
-        chat_id=viewer_msg_or_call.chat.id if isinstance(viewer_msg_or_call, Message) else viewer_msg_or_call.message.chat.id,
+        chat_id=chat_id,
         photo=p["photo_file_id"],
         caption=caption,
-        reply_markup=kb_card(t, target_user_id),
+        reply_markup=kb_card(t, uid),
     )
 
-# ---------------- HANDLERS ----------------
-
+# ---------- START ----------
 @dp.message(CommandStart())
 async def start(message: Message):
-    lang = lang_of(getattr(message.from_user, "language_code", None))
-    await set_user(message.from_user.id, message.from_user.username, lang)
+    lang = lang_of(message.from_user.language_code)
     t = TEXT[lang]
 
     if not await is_subscribed(message.from_user.id):
@@ -383,282 +270,242 @@ async def start(message: Message):
 
 @dp.callback_query(F.data == "check_sub")
 async def check_sub(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
-    await set_user(call.from_user.id, call.from_user.username, lang)
+    lang = lang_of(call.from_user.language_code)
     t = TEXT[lang]
-
     if not await is_subscribed(call.from_user.id):
-        await call.answer(t["not_sub"], show_alert=False)
         await call.message.edit_text(t["locked"], reply_markup=kb_locked(t))
         return
-
-    await call.answer("OK", show_alert=False)
     await call.message.edit_text(f"{t['welcome']}\n{t['menu']}", reply_markup=kb_menu(t))
 
-@dp.callback_query(F.data == "menu_back")
-async def menu_back(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
-    t = TEXT[lang]
-    await call.answer()
-    await call.message.edit_text(f"{t['welcome']}\n{t['menu']}", reply_markup=kb_menu(t))
-
+# ---------- CREATE PROFILE ----------
 @dp.callback_query(F.data == "menu_create")
 async def menu_create(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
+    lang = lang_of(call.from_user.language_code)
     t = TEXT[lang]
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM draft WHERE user_id=?", (call.from_user.id,))
+        await db.execute("INSERT OR REPLACE INTO state VALUES(?,?)", (call.from_user.id, "name"))
+        await db.commit()
     await call.answer()
-    await draft_clear(call.from_user.id)
-    await set_step(call.from_user.id, "name")
-    await call.message.answer(f"{t['creating']}\n\n{t['ask_name']}")
+    await call.message.answer(t["ask_name"])
 
-@dp.callback_query(F.data == "menu_profile")
-async def menu_profile(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
-    t = TEXT[lang]
-    await call.answer()
-
-    p = await get_profile(call.from_user.id)
-    if not p:
-        await call.message.answer(t["need_profile"])
-        return
-
-    text = (
-        f"{p['name']}, {p['age']}\n"
-        f"{p['city']}\n"
-        f"{gender_label(lang, p['gender'])} • {looking_label(lang, p['looking'])}\n\n"
-        f"{p['bio']}"
-    )
-    await call.message.answer(text, reply_markup=kb_profile_actions(t))
-
-@dp.callback_query(F.data == "profile_delete")
-async def profile_delete(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
-    t = TEXT[lang]
-    await call.answer()
-    await delete_profile(call.from_user.id)
-    await call.message.answer(t["deleted"])
-
-@dp.callback_query(F.data == "menu_browse")
-async def menu_browse(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
-    t = TEXT[lang]
-    await call.answer()
-
-    if not await profile_exists(call.from_user.id):
-        await call.message.answer(t["need_profile"])
-        return
-
-    target_id = await pick_next_profile(call.from_user.id)
-    if not target_id:
-        await call.message.answer(t["no_more"])
-        return
-
-    await send_card(call, lang, target_id)
-
-# --- profile creation flow ---
 @dp.message()
-async def profile_flow(message: Message):
-    lang = lang_of(getattr(message.from_user, "language_code", None))
+async def flow(message: Message):
+    lang = lang_of(message.from_user.language_code)
     t = TEXT[lang]
-    step = await get_step(message.from_user.id)
 
-    if step == "none":
-        return  # ignore regular messages
-
-    if step == "name":
-        name = (message.text or "").strip()
-        if not name:
-            await message.answer(t["ask_name"])
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT step FROM state WHERE user_id=?", (message.from_user.id,))
+        row = await cur.fetchone()
+        if not row:
             return
-        await draft_set(message.from_user.id, name=name)
-        await set_step(message.from_user.id, "age")
-        await message.answer(t["ask_age"])
-        return
+        step = row[0]
 
-    if step == "age":
-        txt = (message.text or "").strip()
-        if not txt.isdigit():
-            await message.answer(t["bad_age"])
+        if step == "name":
+            name = (message.text or "").strip()
+            if not name:
+                await message.answer(t["ask_name"]); return
+            await db.execute("INSERT OR REPLACE INTO draft(user_id,name) VALUES(?,?)",
+                             (message.from_user.id, name))
+            await db.execute("UPDATE state SET step='age' WHERE user_id=?", (message.from_user.id,))
+            await db.commit()
+            await message.answer(t["ask_age"])
             return
-        age = int(txt)
-        if age < 18 or age > 99:
-            await message.answer(t["bad_age"])
-            return
-        await draft_set(message.from_user.id, age=age)
-        await set_step(message.from_user.id, "city")
-        await message.answer(t["ask_city"])
-        return
 
-    if step == "city":
-        city = (message.text or "").strip()
-        if not city:
+        if step == "age":
+            txt = (message.text or "").strip()
+            if not txt.isdigit():
+                await message.answer(t["bad_age"]); return
+            age = int(txt)
+            if age < 18 or age > 99:
+                await message.answer(t["bad_age"]); return
+            await db.execute("UPDATE draft SET age=? WHERE user_id=?", (age, message.from_user.id))
+            await db.execute("UPDATE state SET step='city' WHERE user_id=?", (message.from_user.id,))
+            await db.commit()
             await message.answer(t["ask_city"])
             return
-        await draft_set(message.from_user.id, city=city)
-        await set_step(message.from_user.id, "gender")
-        await message.answer(t["ask_gender"], reply_markup=kb_gender(t))
-        return
 
-    if step == "photo":
-        if not message.photo:
-            await message.answer(t["no_photo"])
+        if step == "city":
+            city = (message.text or "").strip()
+            if not city:
+                await message.answer(t["ask_city"]); return
+            await db.execute("UPDATE draft SET city=? WHERE user_id=?", (city, message.from_user.id))
+            await db.execute("UPDATE state SET step='gender' WHERE user_id=?", (message.from_user.id,))
+            await db.commit()
+            await message.answer(t["ask_gender"], reply_markup=kb_gender(t))
             return
-        file_id = message.photo[-1].file_id
-        await draft_set(message.from_user.id, photo_file_id=file_id)
-        await set_step(message.from_user.id, "bio")
-        await message.answer(t["ask_bio"])
-        return
 
-    if step == "bio":
-        bio = (message.text or "").strip()
-        if not bio:
+        if step == "photo":
+            if not message.photo:
+                await message.answer(t["no_photo"]); return
+            file_id = message.photo[-1].file_id
+            await db.execute("UPDATE draft SET photo_file_id=? WHERE user_id=?",
+                             (file_id, message.from_user.id))
+            await db.execute("UPDATE state SET step='bio' WHERE user_id=?", (message.from_user.id,))
+            await db.commit()
             await message.answer(t["ask_bio"])
             return
-        await draft_set(message.from_user.id, bio=bio)
-        data = await draft_get(message.from_user.id)
 
-        # save
-        await save_profile(message.from_user.id, data)
-        await draft_clear(message.from_user.id)
-        await clear_step(message.from_user.id)
+        if step == "bio":
+            bio = (message.text or "").strip()
+            if not bio:
+                await message.answer(t["ask_bio"]); return
+            await db.execute("UPDATE draft SET bio=? WHERE user_id=?", (bio, message.from_user.id))
 
-        await message.answer(t["saved"])
-        await message.answer(f"{t['menu']}", reply_markup=kb_menu(t))
-        return
+            # Save profile
+            await db.execute("""
+                INSERT OR REPLACE INTO profiles
+                SELECT user_id, name, age, city, gender, looking, photo_file_id, bio
+                FROM draft WHERE user_id=?
+            """, (message.from_user.id,))
 
-@dp.callback_query(F.data.in_({"g_m", "g_f"}))
+            await db.execute("DELETE FROM state WHERE user_id=?", (message.from_user.id,))
+            await db.execute("DELETE FROM draft WHERE user_id=?", (message.from_user.id,))
+            await db.commit()
+
+            await message.answer(t["saved"], reply_markup=kb_menu(t))
+            return
+
+@dp.callback_query(F.data.in_({"g_m", "g_f", "g_n"}))
 async def pick_gender(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
+    lang = lang_of(call.from_user.language_code)
     t = TEXT[lang]
-    step = await get_step(call.from_user.id)
-    if step != "gender":
-        await call.answer()
-        return
+    g = {"g_m": "m", "g_f": "f", "g_n": "n"}[call.data]
 
-    gender = "m" if call.data == "g_m" else "f"
-    await draft_set(call.from_user.id, gender=gender)
-    await set_step(call.from_user.id, "looking")
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT step FROM state WHERE user_id=?", (call.from_user.id,))
+        row = await cur.fetchone()
+        if not row or row[0] != "gender":
+            await call.answer()
+            return
+
+        await db.execute("UPDATE draft SET gender=? WHERE user_id=?", (g, call.from_user.id))
+        await db.execute("UPDATE state SET step='looking' WHERE user_id=?", (call.from_user.id,))
+        await db.commit()
+
     await call.answer()
     await call.message.answer(t["ask_looking"], reply_markup=kb_looking(t))
 
 @dp.callback_query(F.data.in_({"l_m", "l_f", "l_all"}))
 async def pick_looking(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
+    lang = lang_of(call.from_user.language_code)
     t = TEXT[lang]
-    step = await get_step(call.from_user.id)
-    if step != "looking":
-        await call.answer()
-        return
+    l = {"l_m": "m", "l_f": "f", "l_all": "all"}[call.data]
 
-    looking = {"l_m": "m", "l_f": "f", "l_all": "all"}[call.data]
-    await draft_set(call.from_user.id, looking=looking)
-    await set_step(call.from_user.id, "photo")
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT step FROM state WHERE user_id=?", (call.from_user.id,))
+        row = await cur.fetchone()
+        if not row or row[0] != "looking":
+            await call.answer()
+            return
+
+        await db.execute("UPDATE draft SET looking=? WHERE user_id=?", (l, call.from_user.id))
+        await db.execute("UPDATE state SET step='photo' WHERE user_id=?", (call.from_user.id,))
+        await db.commit()
+
     await call.answer()
     await call.message.answer(t["ask_photo"])
 
-# --- like/skip flow ---
-@dp.callback_query(F.data.startswith("skip:"))
-async def skip_profile(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
+# ---------- BROWSE ----------
+@dp.callback_query(F.data == "menu_browse")
+async def browse(call: CallbackQuery):
+    lang = lang_of(call.from_user.language_code)
     t = TEXT[lang]
-    await call.answer()
 
-    if not await profile_exists(call.from_user.id):
+    # Ensure viewer has profile
+    viewer_profile = await get_profile(call.from_user.id)
+    if not viewer_profile:
+        await call.answer()
         await call.message.answer(t["need_profile"])
         return
 
-    target_id = await pick_next_profile(call.from_user.id)
-    if not target_id:
+    uid = await pick_next_profile(call.from_user.id)
+    await call.answer()
+    if not uid:
         await call.message.answer(t["no_more"])
         return
-    await send_card(call, lang, target_id)
+
+    await send_card(call.message.chat.id, lang, uid)
+
+# ---------- LIKE / SKIP ----------
+@dp.callback_query(F.data.startswith("skip:"))
+async def skip(call: CallbackQuery):
+    lang = lang_of(call.from_user.language_code)
+    t = TEXT[lang]
+
+    viewer_profile = await get_profile(call.from_user.id)
+    if not viewer_profile:
+        await call.answer()
+        await call.message.answer(t["need_profile"])
+        return
+
+    uid = await pick_next_profile(call.from_user.id)
+    await call.answer()
+    if not uid:
+        await call.message.answer(t["no_more"])
+        return
+    await send_card(call.message.chat.id, lang, uid)
 
 @dp.callback_query(F.data.startswith("like:"))
-async def like_profile(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
+async def like(call: CallbackQuery):
+    lang = lang_of(call.from_user.language_code)
     t = TEXT[lang]
-    await call.answer()
 
-    if not await profile_exists(call.from_user.id):
+    viewer_profile = await get_profile(call.from_user.id)
+    if not viewer_profile:
+        await call.answer()
         await call.message.answer(t["need_profile"])
         return
 
     try:
         target_id = int(call.data.split(":", 1)[1])
     except Exception:
+        await call.answer()
         return
 
-    # store like
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT OR IGNORE INTO likes(from_user_id, to_user_id) VALUES(?,?)",
-            (call.from_user.id, target_id)
-        )
+        await db.execute("INSERT OR IGNORE INTO likes(from_user_id, to_user_id) VALUES(?,?)",
+                         (call.from_user.id, target_id))
         await db.commit()
 
-        # check mutual
-        cur = await db.execute(
-            "SELECT 1 FROM likes WHERE from_user_id=? AND to_user_id=?",
-            (target_id, call.from_user.id)
-        )
+        # mutual?
+        cur = await db.execute("SELECT 1 FROM likes WHERE from_user_id=? AND to_user_id=?",
+                               (target_id, call.from_user.id))
         mutual = (await cur.fetchone()) is not None
 
+    await call.answer()
     if mutual:
         await call.message.answer(t["matched"])
 
-        # notify both with usernames if possible
-        u1 = call.from_user.username
-        u2_profile = await get_profile(target_id)  # just to ensure exists
-        # fetch stored usernames
-        async with aiosqlite.connect(DB_PATH) as db:
-            cur1 = await db.execute("SELECT username FROM users WHERE user_id=?", (call.from_user.id,))
-            r1 = await cur1.fetchone()
-            cur2 = await db.execute("SELECT username FROM users WHERE user_id=?", (target_id,))
-            r2 = await cur2.fetchone()
-        u1 = (r1[0] if r1 else None) or call.from_user.username
-        u2 = (r2[0] if r2 else None)
-
-        # message viewer
-        if u2:
-            await call.message.answer(f"{t['mutual']}\n@{u2}")
-        else:
-            await call.message.answer(t["no_username"])
-
-        # message other side
-        # determine other side lang (fallback to EN)
-        other_lang = "en"
-        async with aiosqlite.connect(DB_PATH) as db:
-            cur = await db.execute("SELECT lang FROM users WHERE user_id=?", (target_id,))
-            r = await cur.fetchone()
-            if r and r[0] in ("ru", "en"):
-                other_lang = r[0]
-        ot = TEXT[other_lang]
-
-        try:
-            await bot.send_message(target_id, ot["matched"])
-            if u1:
-                await bot.send_message(target_id, f"{ot['mutual']}\n@{u1}")
-            else:
-                await bot.send_message(target_id, ot["no_username"])
-        except Exception:
-            pass
-    else:
-        # optional: notify "you got like" (can be noisy; keep minimal)
-        pass
-
-    # next card
-    next_id = await pick_next_profile(call.from_user.id)
-    if not next_id:
+    # Next
+    uid = await pick_next_profile(call.from_user.id)
+    if not uid:
         await call.message.answer(t["no_more"])
         return
-    await send_card(call, lang, next_id)
+    await send_card(call.message.chat.id, lang, uid)
+
+# ---------- PROFILE ----------
+@dp.callback_query(F.data == "menu_profile")
+async def my_profile(call: CallbackQuery):
+    lang = lang_of(call.from_user.language_code)
+    t = TEXT[lang]
+
+    p = await get_profile(call.from_user.id)
+    await call.answer()
+    if not p:
+        await call.message.answer(t["need_profile"])
+        return
+
+    caption = f"{p['name']}, {p['age']}\n{p['city']}\n{gender_badge(lang, p['gender'])}\n\n{p['bio']}"
+    await bot.send_photo(call.message.chat.id, p["photo_file_id"], caption=caption)
 
 @dp.message(Command("help"))
 async def help_cmd(message: Message):
-    lang = lang_of(getattr(message.from_user, "language_code", None))
+    lang = lang_of(message.from_user.language_code)
     t = TEXT[lang]
     await message.answer(f"{t['welcome']}\n{t['menu']}", reply_markup=kb_menu(t))
 
+# ---------- MAIN ----------
 async def main():
     await db_init()
     await dp.start_polling(bot)
