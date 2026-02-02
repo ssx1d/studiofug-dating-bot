@@ -16,73 +16,71 @@ if not TOKEN:
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ====== CONFIG (REPLACE THIS) ======
-CHANNEL = "@stylefug"  # <-- put your channel username, e.g. "@studioFUG"
-CHANNEL_URL = "https://t.me/stylefug"  # <-- put your channel link, e.g. "https://t.me/studioFUG"
-# ===================================
+# ====== CHANNEL GATE ======
+CHANNEL = "@stylefug"
+CHANNEL_URL = "https://t.me/stylefug"
+# ==========================
 
 TEXT = {
-    "locked": (
-        "studioFUG dating is private.\n"
-        "Subscribe to the official channel to continue."
-    ),
-    "join": "Subscribe",
-    "ijoined": "I subscribed",
-    "welcome": (
-        "Welcome.\n\n"
-        "Next: profile setup."
-    ),
-    "cant_check": (
-        "I can't verify your subscription yet.\n"
-        "Admin check: the bot must be an admin of the channel."
-    ),
+    "ru": {
+        "locked": "studioFUG dating — закрытое комьюнити.\nПодпишись на официальный канал, чтобы продолжить.",
+        "join": "Подписаться",
+        "ijoined": "Я подписался",
+        "welcome": "Добро пожаловать.\n\nДальше — создание профиля.",
+        "not_sub": "Пока не вижу подписку."
+    },
+    "en": {
+        "locked": "studioFUG dating is private.\nSubscribe to the official channel to continue.",
+        "join": "Subscribe",
+        "ijoined": "I subscribed",
+        "welcome": "Welcome.\n\nNext: profile setup.",
+        "not_sub": "Not subscribed yet."
+    }
 }
 
+def get_lang(user_lang: str | None) -> str:
+    return "ru" if (user_lang or "").startswith("ru") else "en"
 
-def kb_locked():
+def kb_locked(t: dict):
     kb = InlineKeyboardBuilder()
-    kb.button(text=TEXT["join"], url=CHANNEL_URL)
-    kb.button(text=TEXT["ijoined"], callback_data="check_sub")
+    kb.button(text=t["join"], url=CHANNEL_URL)
+    kb.button(text=t["ijoined"], callback_data="check_sub")
     kb.adjust(1)
     return kb.as_markup()
 
-
 async def is_subscribed(user_id: int) -> bool:
-    """
-    Works when the bot is an admin in the channel.
-    """
     try:
         m = await bot.get_chat_member(CHANNEL, user_id)
         return m.status in {"member", "administrator", "creator"}
     except Exception:
-        # usually means bot is not admin or channel name is wrong
         return False
-
 
 @dp.message(CommandStart())
 async def start(message: Message):
-    ok = await is_subscribed(message.from_user.id)
-    if not ok:
-        await message.answer(TEXT["locked"], reply_markup=kb_locked())
-        return
-    await message.answer(TEXT["welcome"])
+    lang = get_lang(getattr(message.from_user, "language_code", None))
+    t = TEXT[lang]
 
+    if not await is_subscribed(message.from_user.id):
+        await message.answer(t["locked"], reply_markup=kb_locked(t))
+        return
+
+    await message.answer(t["welcome"])
 
 @dp.callback_query(F.data == "check_sub")
 async def check_sub(call: CallbackQuery):
-    ok = await is_subscribed(call.from_user.id)
-    if not ok:
-        await call.answer("Not subscribed yet.", show_alert=False)
-        await call.message.edit_text(TEXT["locked"], reply_markup=kb_locked())
+    lang = get_lang(getattr(call.from_user, "language_code", None))
+    t = TEXT[lang]
+
+    if not await is_subscribed(call.from_user.id):
+        await call.answer(t["not_sub"], show_alert=False)
+        await call.message.edit_text(t["locked"], reply_markup=kb_locked(t))
         return
 
-    await call.answer("Access granted.", show_alert=False)
-    await call.message.edit_text(TEXT["welcome"])
-
+    await call.answer("OK", show_alert=False)
+    await call.message.edit_text(t["welcome"])
 
 async def main():
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
