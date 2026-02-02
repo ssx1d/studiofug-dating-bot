@@ -58,6 +58,13 @@ TEXT = {
         "updated": "Сохранено.",
         "cancelled": "Отменено.",
 
+        "delete": "Удалить профиль",
+        "delete_confirm": "Удалить профиль навсегда? Это удалит анкету, лайки и историю.",
+        "yes_delete": "Да, удалить",
+        "no_delete": "Нет",
+        "deleted": "Профиль удалён.",
+
+
         "ask_name": "Имя / никнейм?",
         "ask_age": "Возраст (числом)?",
         "ask_city": "Город?",
@@ -246,6 +253,13 @@ def kb_card(t: dict, uid: int):
     kb.button(text=t["report"], callback_data=f"report:{uid}")
     kb.button(text=t["comment"], callback_data=f"comment:{uid}")
     kb.adjust(2, 2)
+    return kb.as_markup()
+
+def kb_delete_confirm(t: dict):
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t["yes_delete"], callback_data="delete_yes")
+    kb.button(text=t["no_delete"], callback_data="delete_no")
+    kb.adjust(1)
     return kb.as_markup()
 
 
@@ -600,6 +614,24 @@ async def cmd_cancel(message: Message):
     await message.answer(t["cancelled"])
     await menu_send(message.chat.id, lang)
 
+    
+    @dp.message(Command("delete"))
+async def cmd_delete(message: Message):
+    lang = lang_of(getattr(message.from_user, "language_code", None))
+    await set_user(message.from_user.id, message.from_user.username, lang)
+    t = TEXT[lang]
+
+    if await is_banned(message.from_user.id):
+        await message.answer(t["banned"])
+        return
+
+    if not await profile_exists(message.from_user.id):
+        await message.answer(t["need_profile"])
+        return
+
+    await message.answer(t["delete_confirm"], reply_markup=kb_delete_confirm(t))
+
+
 
 # =========================
 # START / GATE
@@ -901,6 +933,37 @@ async def cb_like(call: CallbackQuery):
         await send_profile_card(call.message.chat.id, lang, uid, kb_card(t, uid))
     else:
         await call.message.answer(t["no_more"])
+
+@dp.callback_query(F.data == "delete_no")
+async def cb_delete_no(call: CallbackQuery):
+    lang = lang_of(getattr(call.from_user, "language_code", None))
+    await set_user(call.from_user.id, call.from_user.username, lang)
+    t = TEXT[lang]
+    await call.answer()
+    await call.message.answer(t["cancelled"])
+    await menu_send(call.message.chat.id, lang)
+
+
+@dp.callback_query(F.data == "delete_yes")
+async def cb_delete_yes(call: CallbackQuery):
+    lang = lang_of(getattr(call.from_user, "language_code", None))
+    await set_user(call.from_user.id, call.from_user.username, lang)
+    t = TEXT[lang]
+    await call.answer()
+
+    uid = call.from_user.id
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        # delete profile + all related data
+        await db.execute("DELETE FROM profiles WHERE user_id=?", (uid,))
+        await db.execute("DELETE FROM draft WHERE user_id=?", (uid,))
+        await db.execute("DELETE FROM state WHERE user_id=?", (uid,))
+        await db.execute("DELETE FROM pending_comment WHERE user_id=?", (uid,))
+        await db.execute("DELETE FROM likes WHERE from_user_id=? OR to_user_id=?", (uid, uid))
+        await db.commit()
+
+    await call.message.answer(t["deleted"])
+    await menu_send(call.message.chat.id, lang)
 
 
 @dp.callback_query(F.data.startswith("pass:"))
