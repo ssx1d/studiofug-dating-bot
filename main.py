@@ -24,7 +24,7 @@ CHANNEL_URL = "https://t.me/stylefug"
 # ==========================
 
 # ====== ADMIN ======
-ADMIN_ID = 0  # <-- your numeric user id
+ADMIN_ID = 161015743  # <-- your numeric user id
 # ===================
 
 DB_PATH = "db.sqlite3"
