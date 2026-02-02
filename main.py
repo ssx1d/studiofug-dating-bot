@@ -9,7 +9,6 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-
 # =========================
 # CONFIG
 # =========================
@@ -28,26 +27,23 @@ CHANNEL_URL = "https://t.me/stylefug"
 # Admin (your numeric Telegram user id):
 ADMIN_ID = 161015743
 
-
-# =========================
-# APP
-# =========================
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
 
 # =========================
 # TEXT / I18N
 # =========================
 TEXT = {
     "ru": {
-        "locked": "club DATE — закрытое комьюнити.\nПодпишись на @stylefug, чтобы продолжить.",
+        "locked": "studioFUG dating — закрытое комьюнити.\nПодпишись на @stylefug, чтобы продолжить.",
         "join": "Подписаться",
         "ijoined": "Я подписался",
         "not_sub": "Пока не вижу подписку.",
         "banned": "Доступ закрыт.",
+
         "welcome": "Добро пожаловать.",
         "menu": "Выбери действие:",
+        "how": "How it works",
         "create": "Создать профиль",
         "browse": "Смотреть анкеты",
         "profile": "Мой профиль",
@@ -58,13 +54,6 @@ TEXT = {
         "updated": "Сохранено.",
         "cancelled": "Отменено.",
 
-        "delete": "Удалить профиль",
-        "delete_confirm": "Удалить профиль навсегда? Это удалит анкету, лайки и историю.",
-        "yes_delete": "Да, удалить",
-        "no_delete": "Нет",
-        "deleted": "Профиль удалён.",
-
-
         "ask_name": "Имя / никнейм?",
         "ask_age": "Возраст (числом)?",
         "ask_city": "Город?",
@@ -72,10 +61,12 @@ TEXT = {
         "g_m": "Мужчина",
         "g_f": "Женщина",
         "g_n": "Не хочу говорить",
+
         "ask_looking": "Кто интересен?",
         "l_m": "Мужчины",
         "l_f": "Женщины",
         "l_all": "Все",
+
         "ask_photo": "Пришли 1 фото (именно как фото, не файл).",
         "ask_bio": "Коротко о себе (1–2 строки).",
 
@@ -110,20 +101,42 @@ TEXT = {
         "edit_gender": "Гендер",
         "back": "Назад",
 
+        "delete": "Удалить профиль",
+        "delete_confirm": "Удалить профиль навсегда? Это удалит анкету, лайки и историю.",
+        "yes_delete": "Да, удалить",
+        "no_delete": "Нет",
+        "deleted": "Профиль удалён.",
+
         "admin_new_profile": "Новый профиль",
         "admin_report": "Жалоба",
         "admin_usage": "Используй: /ban <user_id> или /unban <user_id>",
         "admin_banned_ok": "Забанен.",
         "admin_unbanned_ok": "Разбанен.",
+
+        "hiw_text": (
+            "studioFUG dating — закрытое комьюнити для эстетичных людей.\n\n"
+            "• Создай профиль (1 фото + короткий текст)\n"
+            "• Смотри анкеты\n"
+            "• 💋 — если нравится\n"
+            "• ❌ — если нет\n"
+            "• Взаимный лайк → вы получаете @ друг друга\n\n"
+            "• 💌 Комментарий — мягкий сигнал\n"
+            "• ‼️ Жалоба — если что-то не ок\n\n"
+            "Профиль можно редактировать или удалить в любой момент."
+        ),
+        "go_create": "Создать профиль",
+        "go_browse": "Смотреть анкеты",
     },
     "en": {
-        "locked": "club DATE is private.\nSubscribe to @stylefug to continue.",
+        "locked": "studioFUG dating is private.\nSubscribe to @stylefug to continue.",
         "join": "Subscribe",
         "ijoined": "I subscribed",
         "not_sub": "Not subscribed yet.",
         "banned": "Access denied.",
+
         "welcome": "Welcome.",
         "menu": "Choose an action:",
+        "how": "How it works",
         "create": "Create profile",
         "browse": "Browse",
         "profile": "My profile",
@@ -141,10 +154,12 @@ TEXT = {
         "g_m": "Man",
         "g_f": "Woman",
         "g_n": "Prefer not to say",
+
         "ask_looking": "Looking for?",
         "l_m": "Men",
         "l_f": "Women",
         "l_all": "All",
+
         "ask_photo": "Send 1 photo (as photo, not file).",
         "ask_bio": "Short bio (1–2 lines).",
 
@@ -179,11 +194,31 @@ TEXT = {
         "edit_gender": "Gender",
         "back": "Back",
 
+        "delete": "Delete profile",
+        "delete_confirm": "Delete your profile permanently? This will remove your profile, likes, and history.",
+        "yes_delete": "Yes, delete",
+        "no_delete": "No",
+        "deleted": "Profile deleted.",
+
         "admin_new_profile": "New profile",
         "admin_report": "Report",
         "admin_usage": "Use: /ban <user_id> or /unban <user_id>",
         "admin_banned_ok": "Banned.",
         "admin_unbanned_ok": "Unbanned.",
+
+        "hiw_text": (
+            "studioFUG dating is a private community.\n\n"
+            "• Create a profile (1 photo + short text)\n"
+            "• Browse profiles\n"
+            "• 💋 — like\n"
+            "• ❌ — pass\n"
+            "• Mutual like → you both get each other's @\n\n"
+            "• 💌 Comment — a soft signal\n"
+            "• ‼️ Report — if something is not ok\n\n"
+            "You can edit or delete your profile anytime."
+        ),
+        "go_create": "Create profile",
+        "go_browse": "Browse",
     }
 }
 
@@ -216,12 +251,15 @@ def kb_locked(t: dict):
 
 def kb_menu(t: dict, has_profile: bool):
     kb = InlineKeyboardBuilder()
+    kb.button(text=t["how"], callback_data="menu_how")
+
     if not has_profile:
         kb.button(text=t["create"], callback_data="menu_create")
     else:
+        kb.button(text=t["browse"], callback_data="menu_browse")
         kb.button(text=t["profile"], callback_data="menu_profile")
         kb.button(text=t["edit"], callback_data="menu_edit")
-    kb.button(text=t["browse"], callback_data="menu_browse")
+
     kb.adjust(1)
     return kb.as_markup()
 
@@ -255,13 +293,6 @@ def kb_card(t: dict, uid: int):
     kb.adjust(2, 2)
     return kb.as_markup()
 
-def kb_delete_confirm(t: dict):
-    kb = InlineKeyboardBuilder()
-    kb.button(text=t["yes_delete"], callback_data="delete_yes")
-    kb.button(text=t["no_delete"], callback_data="delete_no")
-    kb.adjust(1)
-    return kb.as_markup()
-
 
 def kb_incoming_like(t: dict, liker_id: int):
     kb = InlineKeyboardBuilder()
@@ -282,8 +313,28 @@ def kb_edit_menu(t: dict):
     kb.button(text=t["edit_looking"], callback_data="edit_looking")
     kb.button(text=t["edit_name"], callback_data="edit_name")
     kb.button(text=t["edit_gender"], callback_data="edit_gender")
+    kb.button(text=t["delete"], callback_data="delete_open")
     kb.button(text=t["back"], callback_data="menu_back")
-    kb.adjust(2, 2, 2, 1)
+    kb.adjust(2, 2, 2, 2, 1)
+    return kb.as_markup()
+
+
+def kb_delete_confirm(t: dict):
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t["yes_delete"], callback_data="delete_yes")
+    kb.button(text=t["no_delete"], callback_data="delete_no")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_how(t: dict, has_profile: bool):
+    kb = InlineKeyboardBuilder()
+    if has_profile:
+        kb.button(text=t["go_browse"], callback_data="menu_browse")
+    else:
+        kb.button(text=t["go_create"], callback_data="menu_create")
+    kb.button(text=t["back"], callback_data="menu_back")
+    kb.adjust(1)
     return kb.as_markup()
 
 
@@ -609,13 +660,14 @@ async def cmd_cancel(message: Message):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM pending_comment WHERE user_id=?", (message.from_user.id,))
         await db.execute("DELETE FROM state WHERE user_id=?", (message.from_user.id,))
+        await db.execute("DELETE FROM draft WHERE user_id=?", (message.from_user.id,))
         await db.commit()
 
     await message.answer(t["cancelled"])
     await menu_send(message.chat.id, lang)
 
-    
-    @dp.message(Command("delete"))
+
+@dp.message(Command("delete"))
 async def cmd_delete(message: Message):
     lang = lang_of(getattr(message.from_user, "language_code", None))
     await set_user(message.from_user.id, message.from_user.username, lang)
@@ -630,7 +682,6 @@ async def cmd_delete(message: Message):
         return
 
     await message.answer(t["delete_confirm"], reply_markup=kb_delete_confirm(t))
-
 
 
 # =========================
@@ -661,12 +712,15 @@ async def check_sub(call: CallbackQuery):
 
     if await is_banned(call.from_user.id):
         await call.answer()
-        await call.message.edit_text(t["banned"])
+        await call.message.answer(t["banned"])
         return
 
     if not await is_subscribed(call.from_user.id):
         await call.answer(t["not_sub"], show_alert=False)
-        await call.message.edit_text(t["locked"], reply_markup=kb_locked(t))
+        try:
+            await call.message.edit_text(t["locked"], reply_markup=kb_locked(t))
+        except Exception:
+            await call.message.answer(t["locked"], reply_markup=kb_locked(t))
         return
 
     await call.answer("OK", show_alert=False)
@@ -684,6 +738,25 @@ async def menu_back(call: CallbackQuery):
     await menu_send(call.message.chat.id, lang)
 
 
+@dp.callback_query(F.data == "menu_how")
+async def menu_how(call: CallbackQuery):
+    lang = lang_of(getattr(call.from_user, "language_code", None))
+    await set_user(call.from_user.id, call.from_user.username, lang)
+    t = TEXT[lang]
+    await call.answer()
+
+    if await is_banned(call.from_user.id):
+        await call.message.answer(t["banned"])
+        return
+
+    if not await is_subscribed(call.from_user.id):
+        await call.message.answer(t["locked"], reply_markup=kb_locked(t))
+        return
+
+    has_profile = await profile_exists(call.from_user.id)
+    await call.message.answer(t["hiw_text"], reply_markup=kb_how(t, has_profile))
+
+
 @dp.callback_query(F.data == "menu_create")
 async def menu_create(call: CallbackQuery):
     lang = lang_of(getattr(call.from_user, "language_code", None))
@@ -695,8 +768,11 @@ async def menu_create(call: CallbackQuery):
         await call.message.answer(t["banned"])
         return
 
+    if not await is_subscribed(call.from_user.id):
+        await call.message.answer(t["locked"], reply_markup=kb_locked(t))
+        return
+
     if await profile_exists(call.from_user.id):
-        # already has profile
         await menu_send(call.message.chat.id, lang)
         return
 
@@ -719,6 +795,10 @@ async def menu_profile(call: CallbackQuery):
         await call.message.answer(t["banned"])
         return
 
+    if not await is_subscribed(call.from_user.id):
+        await call.message.answer(t["locked"], reply_markup=kb_locked(t))
+        return
+
     p = await get_profile(call.from_user.id)
     if not p:
         await call.message.answer(t["need_profile"])
@@ -739,6 +819,10 @@ async def menu_edit(call: CallbackQuery):
         await call.message.answer(t["banned"])
         return
 
+    if not await is_subscribed(call.from_user.id):
+        await call.message.answer(t["locked"], reply_markup=kb_locked(t))
+        return
+
     if not await profile_exists(call.from_user.id):
         await call.message.answer(t["need_profile"])
         return
@@ -755,6 +839,10 @@ async def menu_browse(call: CallbackQuery):
 
     if await is_banned(call.from_user.id):
         await call.message.answer(t["banned"])
+        return
+
+    if not await is_subscribed(call.from_user.id):
+        await call.message.answer(t["locked"], reply_markup=kb_locked(t))
         return
 
     if not await profile_exists(call.from_user.id):
@@ -811,7 +899,59 @@ async def edit_choose(call: CallbackQuery):
 
 
 # =========================
-# GENDER / LOOKING CALLBACKS (NO DUPLICATES!)
+# DELETE (from edit menu + /delete)
+# =========================
+@dp.callback_query(F.data == "delete_open")
+async def delete_open(call: CallbackQuery):
+    lang = lang_of(getattr(call.from_user, "language_code", None))
+    await set_user(call.from_user.id, call.from_user.username, lang)
+    t = TEXT[lang]
+    await call.answer()
+
+    if await is_banned(call.from_user.id):
+        await call.message.answer(t["banned"])
+        return
+
+    if not await profile_exists(call.from_user.id):
+        await call.message.answer(t["need_profile"])
+        return
+
+    await call.message.answer(t["delete_confirm"], reply_markup=kb_delete_confirm(t))
+
+
+@dp.callback_query(F.data == "delete_no")
+async def delete_no(call: CallbackQuery):
+    lang = lang_of(getattr(call.from_user, "language_code", None))
+    await set_user(call.from_user.id, call.from_user.username, lang)
+    t = TEXT[lang]
+    await call.answer()
+    await call.message.answer(t["cancelled"])
+    await menu_send(call.message.chat.id, lang)
+
+
+@dp.callback_query(F.data == "delete_yes")
+async def delete_yes(call: CallbackQuery):
+    lang = lang_of(getattr(call.from_user, "language_code", None))
+    await set_user(call.from_user.id, call.from_user.username, lang)
+    t = TEXT[lang]
+    await call.answer()
+
+    uid = call.from_user.id
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM profiles WHERE user_id=?", (uid,))
+        await db.execute("DELETE FROM draft WHERE user_id=?", (uid,))
+        await db.execute("DELETE FROM state WHERE user_id=?", (uid,))
+        await db.execute("DELETE FROM pending_comment WHERE user_id=?", (uid,))
+        await db.execute("DELETE FROM likes WHERE from_user_id=? OR to_user_id=?", (uid, uid))
+        await db.commit()
+
+    await call.message.answer(t["deleted"])
+    await menu_send(call.message.chat.id, lang)
+
+
+# =========================
+# GENDER / LOOKING CALLBACKS (NO DUPLICATES)
 # =========================
 @dp.callback_query(F.data.in_({"g_m", "g_f", "g_n", "eg_m", "eg_f", "eg_n"}))
 async def cb_gender(call: CallbackQuery):
@@ -825,7 +965,7 @@ async def cb_gender(call: CallbackQuery):
         return
 
     mapping = {
-        "g_m": "m", "g_f": "f", "g_n": "n",
+        "g_m": "m", "g_f": "f", "g_n": "n. . .".replace(" ", "").lower() and "n",  # keeps "n" safely
         "eg_m": "m", "eg_f": "f", "eg_n": "n",
     }
     g = mapping[call.data]
@@ -934,37 +1074,6 @@ async def cb_like(call: CallbackQuery):
     else:
         await call.message.answer(t["no_more"])
 
-@dp.callback_query(F.data == "delete_no")
-async def cb_delete_no(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
-    await set_user(call.from_user.id, call.from_user.username, lang)
-    t = TEXT[lang]
-    await call.answer()
-    await call.message.answer(t["cancelled"])
-    await menu_send(call.message.chat.id, lang)
-
-
-@dp.callback_query(F.data == "delete_yes")
-async def cb_delete_yes(call: CallbackQuery):
-    lang = lang_of(getattr(call.from_user, "language_code", None))
-    await set_user(call.from_user.id, call.from_user.username, lang)
-    t = TEXT[lang]
-    await call.answer()
-
-    uid = call.from_user.id
-
-    async with aiosqlite.connect(DB_PATH) as db:
-        # delete profile + all related data
-        await db.execute("DELETE FROM profiles WHERE user_id=?", (uid,))
-        await db.execute("DELETE FROM draft WHERE user_id=?", (uid,))
-        await db.execute("DELETE FROM state WHERE user_id=?", (uid,))
-        await db.execute("DELETE FROM pending_comment WHERE user_id=?", (uid,))
-        await db.execute("DELETE FROM likes WHERE from_user_id=? OR to_user_id=?", (uid, uid))
-        await db.commit()
-
-    await call.message.answer(t["deleted"])
-    await menu_send(call.message.chat.id, lang)
-
 
 @dp.callback_query(F.data.startswith("pass:"))
 async def cb_pass(call: CallbackQuery):
@@ -1056,7 +1165,12 @@ async def router(message: Message):
 
         try:
             await bot.send_message(target_id, f"{tt['incoming_comment']}\n{text}")
-            await send_profile_card(target_id, target_lang, message.from_user.id, kb_incoming_like(tt, message.from_user.id))
+            await send_profile_card(
+                target_id,
+                target_lang,
+                message.from_user.id,
+                kb_incoming_like(tt, message.from_user.id)
+            )
         except Exception:
             pass
 
@@ -1073,8 +1187,7 @@ async def router(message: Message):
         return
 
     async with aiosqlite.connect(DB_PATH) as db:
-
-        # -------- CREATE FLOW --------
+        # -------- CREATE FLOW: name -> age -> city -> gender -> looking -> photo -> bio --------
         if step == "name":
             name = (message.text or "").strip()
             if not name:
@@ -1144,10 +1257,12 @@ async def router(message: Message):
 
             await message.answer(t["saved"])
             await admin_new_profile(message.from_user.id)
+
+            # After creation: go to menu
             await menu_send(message.chat.id, lang)
             return
 
-        # -------- EDIT FLOW --------
+        # -------- EDIT FLOW (text inputs) --------
         if step == "edit_name":
             name = (message.text or "").strip()
             if not name:
@@ -1211,19 +1326,6 @@ async def router(message: Message):
             await message.answer(t["updated"])
             await menu_send(message.chat.id, lang)
             return
-
-
-# =========================
-# HELP -> menu
-# =========================
-@dp.message(Command("help"))
-async def help_cmd(message: Message):
-    lang = lang_of(getattr(message.from_user, "language_code", None))
-    await set_user(message.from_user.id, message.from_user.username, lang)
-    if await is_banned(message.from_user.id):
-        await message.answer(TEXT[lang]["banned"])
-        return
-    await menu_send(message.chat.id, lang)
 
 
 # =========================
